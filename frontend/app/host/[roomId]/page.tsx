@@ -86,6 +86,14 @@ export default function HostRoomPage({ params }: Props) {
         <div className="flex items-center gap-3">
           <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-400' : 'bg-red-400'}`} />
           <span className="text-sm text-slate-400">{participantCount}人参加中</span>
+          <a
+            href={`/host/${roomId}/results`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/50 text-indigo-300 font-semibold transition-colors"
+          >
+            📺 大画面表示
+          </a>
         </div>
       </div>
 
