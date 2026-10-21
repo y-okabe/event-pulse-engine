@@ -300,6 +300,29 @@ export function advancePresentationStep(roomId: string): PresentationStep | null
   return state.presentationStep;
 }
 
+/** 前のQへ戻る。1→0→ 下限。0のままなら変化なし。 */
+export function goBackPresentationStep(roomId: string): PresentationStep | null {
+  const state = store.get(roomId);
+  if (!state) return null;
+  if (state.presentationStep <= 0) return state.presentationStep;
+  state.presentationStep = (state.presentationStep - 1) as PresentationStep;
+
+  // 戻り先ステップのデータをリセット（再回答できるよう）
+  if (state.presentationStep === 0) {
+    // 待機中: Q1 のデータをリセット
+    state.presSliderQ1.clear();
+  } else if (state.presentationStep === 1) {
+    // Q1 に戻る: Q2 のデータをリセット
+    state.multiSliderMap.clear();
+    state.currentMultiQuestion = null;
+  } else if (state.presentationStep === 2) {
+    // Q2 に戻る: Q3 のデータをリセット
+    state.presSliderQ3.clear();
+  }
+
+  return state.presentationStep;
+}
+
 export function getPresentationStep(roomId: string): PresentationStep {
   return store.get(roomId)?.presentationStep ?? 0;
 }

@@ -166,6 +166,7 @@ export const EVENTS = {
 
   // プレゼンモード
   PRESENTATION_NEXT_Q: 'presentation_next_q',
+  PRESENTATION_PREV_Q: 'presentation_prev_q',
   PRESENTATION_STEP: 'presentation_step',
 
   // エラー

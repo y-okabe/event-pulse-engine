@@ -25,6 +25,7 @@ import {
   getMultiSliderStats,
   getCurrentMultiQuestion,
   advancePresentationStep,
+  goBackPresentationStep,
   getPresentationStep,
   updatePresSlider,
   getPresHeatmapStats,
@@ -182,6 +183,39 @@ export function registerSocketHandlers(io: Server): void {
       }
 
       console.log(`[Presentation] room ${roomId} → step ${newStep}`);
+    });
+
+    // プレゼンモード: 前のQへ戻る（主催者が送信）
+    socket.on(EVENTS.PRESENTATION_PREV_Q, (payload: { roomId: string }) => {
+      const { roomId } = payload;
+      const newStep = goBackPresentationStep(roomId);
+      if (newStep === null) {
+        socket.emit(EVENTS.ERROR, { message: 'Room not found' });
+        return;
+      }
+      // 全員にステップ変更を通知
+      io.to(roomId).emit(EVENTS.PRESENTATION_STEP, { roomId, step: newStep });
+
+      // Q2 に戻った場合: 多軸スライダー問題を再配信
+      if (newStep === 2) {
+        const q2: import('../../../shared/types/index').MultiSliderQuestion = {
+          id: `pres-q2-${roomId}`,
+          roomId,
+          text: '本日のプレゼンで一番聴きたいトピックは？',
+          choices: [
+            { key: 'A', label: '今回の開発プロセスと爆速構築の全容' },
+            { key: 'B', label: '手動（人間）開発 vs Bob（AI）開発の決定的な差' },
+            { key: 'C', label: 'WebSocket・リアルタイムアニメーション実装の難所突破術' },
+            { key: 'D', label: 'Bob（AI）を相棒として使いこなすプロンプトのコツ' },
+          ],
+        };
+        startMultiSlider(roomId, q2);
+        io.to(roomId).emit(EVENTS.MULTI_SLIDER_START, q2);
+        const stats = getMultiSliderStats(roomId);
+        if (stats) io.to(roomId).emit(EVENTS.MULTI_SLIDER_STATS, stats);
+      }
+
+      console.log(`[Presentation] room ${roomId} ← step ${newStep} (back)`);
     });
 
     // プレゼンモード: Q1/Q3 ヒートマップのスライダー値受信（参加者が送信）

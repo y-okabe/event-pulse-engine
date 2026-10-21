@@ -248,19 +248,31 @@ export default function HostRoomPage({ params }: Props) {
             </div>
           </div>
 
-          {/* 次のQへボタン */}
-          {presentationStep < 3 ? (
+          {/* ナビゲーションボタン */}
+          <div className="flex gap-2">
+            {/* 前のQへ戻るボタン */}
             <button
-              onClick={() => socket?.emit(EVENTS.PRESENTATION_NEXT_Q, { roomId })}
-              className="w-full rounded-xl bg-amber-500 hover:bg-amber-400 py-3 font-bold text-slate-900 text-sm transition-colors"
+              onClick={() => socket?.emit(EVENTS.PRESENTATION_PREV_Q, { roomId })}
+              disabled={presentationStep === 0}
+              className="flex-none rounded-xl bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed px-4 py-3 font-bold text-slate-200 text-sm transition-colors"
             >
-              {presentationStep === 0 ? '▶ Q1 を開始する' : `▶ Q${presentationStep + 1} へ進む`}
+              ◀ 前へ
             </button>
-          ) : (
-            <div className="w-full text-center rounded-xl bg-green-500/20 border border-green-500/40 py-3 text-green-300 font-semibold text-sm">
-              ✅ 全質問完了！お疲れ様でした
-            </div>
-          )}
+
+            {/* 次のQへボタン */}
+            {presentationStep < 3 ? (
+              <button
+                onClick={() => socket?.emit(EVENTS.PRESENTATION_NEXT_Q, { roomId })}
+                className="flex-1 rounded-xl bg-amber-500 hover:bg-amber-400 py-3 font-bold text-slate-900 text-sm transition-colors"
+              >
+                {presentationStep === 0 ? '▶ Q1 を開始する' : `▶ Q${presentationStep + 1} へ進む`}
+              </button>
+            ) : (
+              <div className="flex-1 text-center rounded-xl bg-green-500/20 border border-green-500/40 py-3 text-green-300 font-semibold text-sm">
+                ✅ 全質問完了！お疲れ様でした
+              </div>
+            )}
+          </div>
 
           {/* リアルタイム集計 */}
           {presentationStep === 1 && (
