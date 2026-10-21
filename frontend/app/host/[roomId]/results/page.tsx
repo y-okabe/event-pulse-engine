@@ -88,24 +88,6 @@ export default function ResultsDisplayPage({ params }: Props) {
         {/* ── presentation モード ── */}
         {room?.mode === 'presentation' && (
           <div className="w-full max-w-4xl space-y-6">
-            {/* ステップインジケーター */}
-            <div className="flex gap-3">
-              {(['待機中', 'Q1', 'Q2', 'Q3'] as const).map((label, i) => (
-                <div
-                  key={i}
-                  className={`flex-1 text-center rounded-xl py-2.5 text-base font-bold border transition-all ${
-                    presentationStep === i
-                      ? 'border-amber-400 bg-amber-400/20 text-amber-200'
-                      : presentationStep > i
-                      ? 'border-slate-600 bg-slate-700/40 text-slate-500 line-through'
-                      : 'border-slate-700 bg-slate-800/60 text-slate-500'
-                  }`}
-                >
-                  {label}
-                </div>
-              ))}
-            </div>
-
             {/* 待機中 */}
             {presentationStep === 0 && (
               <div className="flex flex-col items-center justify-center gap-4 py-24 text-slate-500">
@@ -154,14 +136,6 @@ export default function ResultsDisplayPage({ params }: Props) {
                   <Waiting />
                 )}
               </>
-            )}
-
-            {/* 完了 */}
-            {presentationStep >= 3 && presHeatmapStatsQ3 && (
-              <div className="flex items-center justify-center gap-3 py-6">
-                <span className="text-3xl">✅</span>
-                <p className="text-xl font-semibold text-green-400">全質問完了！お疲れ様でした</p>
-              </div>
             )}
           </div>
         )}
