@@ -13,7 +13,25 @@ export interface Room {
   createdAt: string;
 }
 
-export type RoomMode = 'heatmap' | 'quiz' | 'multi_slider';
+export type RoomMode = 'heatmap' | 'quiz' | 'multi_slider' | 'presentation';
+
+// ------------------------------------------------------------------
+// プレゼンモード
+// ------------------------------------------------------------------
+
+/** プレゼンモードのQステップ (0=待機, 1=Q1, 2=Q2, 3=Q3) */
+export type PresentationStep = 0 | 1 | 2 | 3;
+
+/** サーバー → 全員: 現在のQステップ通知 */
+export interface PresentationStepPayload {
+  roomId: string;
+  step: PresentationStep;
+}
+
+/** 主催者 → サーバー: 次のQへ進む */
+export interface PresentationNextPayload {
+  roomId: string;
+}
 
 // ------------------------------------------------------------------
 // 参加者
@@ -145,6 +163,10 @@ export const EVENTS = {
   MULTI_SLIDER_START: 'multi_slider_start',
   MULTI_SLIDER_UPDATE: 'multi_slider_update',
   MULTI_SLIDER_STATS: 'multi_slider_stats',
+
+  // プレゼンモード
+  PRESENTATION_NEXT_Q: 'presentation_next_q',
+  PRESENTATION_STEP: 'presentation_step',
 
   // エラー
   ERROR: 'error',

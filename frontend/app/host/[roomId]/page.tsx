@@ -18,8 +18,18 @@ interface Props {
 
 export default function HostRoomPage({ params }: Props) {
   const { roomId } = params;
-  const { socket, connected, participantCount, room, heatmapStats, quizStats, multiSliderStats } =
-    useRoom(roomId);
+  const {
+    socket,
+    connected,
+    participantCount,
+    room,
+    heatmapStats,
+    quizStats,
+    multiSliderStats,
+    presentationStep,
+    presHeatmapStatsQ1,
+    presHeatmapStatsQ3,
+  } = useRoom(roomId);
 
   // クイズ作成フォーム
   const [quizText, setQuizText] = useState('');
@@ -189,6 +199,92 @@ export default function HostRoomPage({ params }: Props) {
 
           {/* 集計結果 */}
           {multiSliderStats && <MultiSliderChart stats={multiSliderStats} />}
+        </section>
+      )}
+
+      {/* ============================================================
+          プレゼンモード: 主催者コントロール
+          ============================================================ */}
+      {room?.mode === 'presentation' && (
+        <section className="rounded-2xl border border-amber-500/40 bg-amber-500/5 p-5 space-y-5">
+          <h2 className="font-semibold text-amber-300">🎤 プレゼンモード — 主催者コントロール</h2>
+
+          {/* ステップ表示 */}
+          <div className="flex gap-2">
+            {(['待機中', 'Q1', 'Q2', 'Q3'] as const).map((label, i) => (
+              <div
+                key={i}
+                className={`flex-1 text-center rounded-xl py-2 text-sm font-semibold border transition-all ${
+                  presentationStep === i
+                    ? 'border-amber-400 bg-amber-400/20 text-amber-200'
+                    : presentationStep > i
+                    ? 'border-slate-600 bg-slate-700/40 text-slate-500 line-through'
+                    : 'border-slate-700 bg-slate-800/60 text-slate-500'
+                }`}
+              >
+                {label}
+              </div>
+            ))}
+          </div>
+
+          {/* Q内容説明 */}
+          <div className="space-y-2 text-sm text-slate-400">
+            <div className={`px-3 py-2 rounded-xl border ${presentationStep === 1 ? 'border-indigo-500/60 bg-indigo-500/10 text-indigo-300' : 'border-slate-700'}`}>
+              <span className="font-bold text-slate-300">Q1</span>：この発表の楽しみ度合いはどうですか？（感情 & 納得度ヒートマップ）
+            </div>
+            <div className={`px-3 py-2 rounded-xl border ${presentationStep === 2 ? 'border-violet-500/60 bg-violet-500/10 text-violet-300' : 'border-slate-700'}`}>
+              <span className="font-bold text-slate-300">Q2</span>：本日のプレゼンで一番聴きたいトピックは？（各択スライダー投票・4択）
+            </div>
+            <div className={`px-3 py-2 rounded-xl border ${presentationStep === 3 ? 'border-indigo-500/60 bg-indigo-500/10 text-indigo-300' : 'border-slate-700'}`}>
+              <span className="font-bold text-slate-300">Q3</span>：このアプリ使ってみたい？楽しい？役に立ちそう？（感情 & 納得度ヒートマップ）
+            </div>
+          </div>
+
+          {/* 次のQへボタン */}
+          {presentationStep < 3 ? (
+            <button
+              onClick={() => socket?.emit(EVENTS.PRESENTATION_NEXT_Q, { roomId })}
+              className="w-full rounded-xl bg-amber-500 hover:bg-amber-400 py-3 font-bold text-slate-900 text-sm transition-colors"
+            >
+              {presentationStep === 0 ? '▶ Q1 を開始する' : `▶ Q${presentationStep + 1} へ進む`}
+            </button>
+          ) : (
+            <div className="w-full text-center rounded-xl bg-green-500/20 border border-green-500/40 py-3 text-green-300 font-semibold text-sm">
+              ✅ 全質問完了！お疲れ様でした
+            </div>
+          )}
+
+          {/* リアルタイム集計 */}
+          {presentationStep === 1 && (
+            <div className="space-y-2">
+              <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Q1 集計結果</p>
+              {presHeatmapStatsQ1 ? (
+                <HeatmapChart stats={presHeatmapStatsQ1} />
+              ) : (
+                <p className="text-slate-500 text-sm">参加者の回答を待っています...</p>
+              )}
+            </div>
+          )}
+          {presentationStep === 2 && (
+            <div className="space-y-2">
+              <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Q2 集計結果</p>
+              {multiSliderStats ? (
+                <MultiSliderChart stats={multiSliderStats} />
+              ) : (
+                <p className="text-slate-500 text-sm">参加者の回答を待っています...</p>
+              )}
+            </div>
+          )}
+          {presentationStep === 3 && (
+            <div className="space-y-2">
+              <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Q3 集計結果</p>
+              {presHeatmapStatsQ3 ? (
+                <HeatmapChart stats={presHeatmapStatsQ3} />
+              ) : (
+                <p className="text-slate-500 text-sm">参加者の回答を待っています...</p>
+              )}
+            </div>
+          )}
         </section>
       )}
     </main>

@@ -26,7 +26,7 @@ roomRouter.post('/', (req, res) => {
   if (!title || !mode) {
     return res.status(400).json({ error: 'title and mode are required' });
   }
-  const validModes: Room['mode'][] = ['heatmap', 'quiz', 'multi_slider'];
+  const validModes: Room['mode'][] = ['heatmap', 'quiz', 'multi_slider', 'presentation'];
   if (!validModes.includes(mode)) {
     return res.status(400).json({ error: `mode must be one of: ${validModes.join(', ')}` });
   }

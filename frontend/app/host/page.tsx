@@ -56,12 +56,14 @@ export default function HostPage() {
     heatmap: '感情 & 納得度ヒートマップ',
     quiz: '確信度つきクイズ',
     multi_slider: '各択スライダー投票',
+    presentation: '🎤 プレゼンモード（Q1〜Q3通し）',
   };
 
   const MODE_OPTIONS: { value: Room['mode']; label: string; desc: string }[] = [
     { value: 'heatmap', label: '①感情 & 納得度ヒートマップ', desc: '参加者がスライダーで0〜100%をリアルタイム操作' },
     { value: 'quiz', label: '②確信度つきクイズ', desc: '選択肢＋確信度（直感/半信半疑/確信）で回答' },
     { value: 'multi_slider', label: '③各択スライダー投票', desc: '各選択肢に独立したスライダーで多軸投票' },
+    { value: 'presentation', label: '🎤 プレゼンモード（Q1〜Q3通し）', desc: 'Q1ヒートマップ → Q2スライダー投票 → Q3ヒートマップ を順番に進行' },
   ];
 
   return (

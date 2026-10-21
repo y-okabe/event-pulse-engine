@@ -8,6 +8,7 @@ import type {
   QuizStats,
   MultiSliderQuestion,
   MultiSliderStats,
+  PresentationStep,
 } from '@eventpulse/shared';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:4000';
@@ -25,6 +26,10 @@ export interface RoomState {
   // 機能③
   currentMultiQuestion: MultiSliderQuestion | null;
   multiSliderStats: MultiSliderStats | null;
+  // プレゼンモード
+  presentationStep: PresentationStep;
+  presHeatmapStatsQ1: HeatmapStats | null;
+  presHeatmapStatsQ3: HeatmapStats | null;
 }
 
 export function useRoom(roomId: string): RoomState {
@@ -39,6 +44,9 @@ export function useRoom(roomId: string): RoomState {
     quizStats: null,
     currentMultiQuestion: null,
     multiSliderStats: null,
+    presentationStep: 0,
+    presHeatmapStatsQ1: null,
+    presHeatmapStatsQ3: null,
   });
 
   useEffect(() => {
@@ -55,12 +63,18 @@ export function useRoom(roomId: string): RoomState {
       setState((s) => ({ ...s, connected: false }));
     });
 
-    socket.on(EVENTS.ROOM_JOINED, (data: { room: Room; currentQuestion: QuizQuestion | null; currentMultiQuestion: MultiSliderQuestion | null }) => {
+    socket.on(EVENTS.ROOM_JOINED, (data: {
+      room: Room;
+      currentQuestion: QuizQuestion | null;
+      currentMultiQuestion: MultiSliderQuestion | null;
+      presentationStep: PresentationStep;
+    }) => {
       setState((s) => ({
         ...s,
         room: data.room,
         currentQuestion: data.currentQuestion,
         currentMultiQuestion: data.currentMultiQuestion,
+        presentationStep: data.presentationStep ?? 0,
       }));
     });
 
@@ -86,6 +100,19 @@ export function useRoom(roomId: string): RoomState {
 
     socket.on(EVENTS.MULTI_SLIDER_STATS, (stats: MultiSliderStats) => {
       setState((s) => ({ ...s, multiSliderStats: stats }));
+    });
+
+    // プレゼンモード: Qステップ変更
+    socket.on(EVENTS.PRESENTATION_STEP, (data: { step: PresentationStep }) => {
+      setState((s) => ({ ...s, presentationStep: data.step }));
+    });
+
+    // プレゼンモード: Q1/Q3 ヒートマップ集計
+    socket.on('pres_heatmap_stats_1', (stats: HeatmapStats) => {
+      setState((s) => ({ ...s, presHeatmapStatsQ1: stats }));
+    });
+    socket.on('pres_heatmap_stats_3', (stats: HeatmapStats) => {
+      setState((s) => ({ ...s, presHeatmapStatsQ3: stats }));
     });
 
     return () => {

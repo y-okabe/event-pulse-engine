@@ -24,6 +24,10 @@ import {
   updateMultiSlider,
   getMultiSliderStats,
   getCurrentMultiQuestion,
+  advancePresentationStep,
+  getPresentationStep,
+  updatePresSlider,
+  getPresHeatmapStats,
 } from '../store/roomStore';
 
 // デバウンス用タイマー管理（socketId → timer）
@@ -52,6 +56,7 @@ export function registerSocketHandlers(io: Server): void {
         room,
         currentQuestion: getCurrentQuestion(roomId),
         currentMultiQuestion: getCurrentMultiQuestion(roomId),
+        presentationStep: getPresentationStep(roomId),
       });
 
       // 参加者数をルーム全員にブロードキャスト
@@ -143,6 +148,60 @@ export function registerSocketHandlers(io: Server): void {
         }, DEBOUNCE_MS)
       );
     });
+
+    // ------------------------------------------------------------------
+    // プレゼンモード: 次のQへ進む（主催者が送信）
+    // ------------------------------------------------------------------
+    socket.on(EVENTS.PRESENTATION_NEXT_Q, (payload: { roomId: string }) => {
+      const { roomId } = payload;
+      const newStep = advancePresentationStep(roomId);
+      if (newStep === null) {
+        socket.emit(EVENTS.ERROR, { message: 'Room not found' });
+        return;
+      }
+      // 全員にステップ変更を通知
+      io.to(roomId).emit(EVENTS.PRESENTATION_STEP, { roomId, step: newStep });
+
+      // Q2 開始時: 多軸スライダー問題を自動配信
+      if (newStep === 2) {
+        const q2: import('../../../shared/types/index').MultiSliderQuestion = {
+          id: `pres-q2-${roomId}`,
+          roomId,
+          text: '本日のプレゼンで一番聴きたいトピックは？',
+          choices: [
+            { key: 'A', label: '今回の開発プロセスと爆速構築の全容' },
+            { key: 'B', label: '手動（人間）開発 vs Bob（AI）開発の決定的な差' },
+            { key: 'C', label: 'WebSocket・リアルタイムアニメーション実装の難所突破術' },
+            { key: 'D', label: 'Bob（AI）を相棒として使いこなすプロンプトのコツ' },
+          ],
+        };
+        startMultiSlider(roomId, q2);
+        io.to(roomId).emit(EVENTS.MULTI_SLIDER_START, q2);
+        const stats = getMultiSliderStats(roomId);
+        if (stats) io.to(roomId).emit(EVENTS.MULTI_SLIDER_STATS, stats);
+      }
+
+      console.log(`[Presentation] room ${roomId} → step ${newStep}`);
+    });
+
+    // プレゼンモード: Q1/Q3 ヒートマップのスライダー値受信（参加者が送信）
+    socket.on(
+      'pres_slider_update',
+      (payload: { roomId: string; step: 1 | 3; value: number }) => {
+        const { roomId, step, value } = payload;
+        if (value < 0 || value > 100) return;
+        const prev = sliderTimers.get(socket.id);
+        if (prev) clearTimeout(prev);
+        sliderTimers.set(
+          socket.id,
+          setTimeout(() => {
+            const stats = updatePresSlider(roomId, socket.id, step, value);
+            if (stats) io.to(roomId).emit(`pres_heatmap_stats_${step}`, stats);
+            sliderTimers.delete(socket.id);
+          }, 80)
+        );
+      }
+    );
 
     // ------------------------------------------------------------------
     // 切断処理

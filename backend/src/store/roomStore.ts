@@ -11,6 +11,7 @@ import type {
   MultiSliderQuestion,
   MultiSliderStats,
   Confidence,
+  PresentationStep,
 } from '../../../shared/types/index';
 
 // ------------------------------------------------------------------
@@ -40,6 +41,11 @@ interface RoomState {
   // 機能③
   currentMultiQuestion: MultiSliderQuestion | null;
   multiSliderMap: Map<string, MultiSliderEntry>; // socketId -> values
+  // プレゼンモード
+  presentationStep: PresentationStep;
+  // プレゼンQ別スライダー（Q1/Q3用）
+  presSliderQ1: Map<string, SliderEntry>;
+  presSliderQ3: Map<string, SliderEntry>;
 }
 
 // ------------------------------------------------------------------
@@ -65,6 +71,9 @@ export function createRoom(title: string, mode: Room['mode']): Room {
     quizAnswers: new Map(),
     currentMultiQuestion: null,
     multiSliderMap: new Map(),
+    presentationStep: 0,
+    presSliderQ1: new Map(),
+    presSliderQ3: new Map(),
   });
   return room;
 }
@@ -266,4 +275,78 @@ export function getMultiSliderStats(roomId: string): MultiSliderStats | null {
 
 export function getCurrentMultiQuestion(roomId: string): MultiSliderQuestion | null {
   return store.get(roomId)?.currentMultiQuestion ?? null;
+}
+
+// ------------------------------------------------------------------
+// プレゼンモード
+// ------------------------------------------------------------------
+
+/** 次のQへ進む。0→1→2→3 で固定。3以上なら何もしない。 */
+export function advancePresentationStep(roomId: string): PresentationStep | null {
+  const state = store.get(roomId);
+  if (!state) return null;
+  if (state.presentationStep >= 3) return state.presentationStep;
+  state.presentationStep = (state.presentationStep + 1) as PresentationStep;
+
+  // ステップ切り替え時にデータをリセット
+  if (state.presentationStep === 1) {
+    state.presSliderQ1.clear();
+  } else if (state.presentationStep === 2) {
+    state.multiSliderMap.clear();
+  } else if (state.presentationStep === 3) {
+    state.presSliderQ3.clear();
+  }
+
+  return state.presentationStep;
+}
+
+export function getPresentationStep(roomId: string): PresentationStep {
+  return store.get(roomId)?.presentationStep ?? 0;
+}
+
+/** Q1/Q3 用プレゼンヒートマップのスライダー更新 */
+export function updatePresSlider(
+  roomId: string,
+  socketId: string,
+  step: 1 | 3,
+  value: number
+): HeatmapStats | null {
+  const state = store.get(roomId);
+  if (!state) return null;
+  const map = step === 1 ? state.presSliderQ1 : state.presSliderQ3;
+  map.set(socketId, { value });
+  return calcPresHeatmapStats(roomId, state, step);
+}
+
+function calcPresHeatmapStats(
+  roomId: string,
+  state: RoomState,
+  step: 1 | 3
+): HeatmapStats {
+  const map = step === 1 ? state.presSliderQ1 : state.presSliderQ3;
+  const values = [...map.values()].map((e) => e.value);
+  const count = values.length;
+  const mean = count > 0 ? values.reduce((a, b) => a + b, 0) / count : 0;
+  const variance =
+    count > 0 ? values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / count : 0;
+  const stdDev = Math.sqrt(variance);
+  const distribution = Array(10).fill(0) as number[];
+  for (const v of values) {
+    const bin = Math.min(Math.floor(v / 10), 9);
+    distribution[bin]++;
+  }
+  return {
+    roomId,
+    count,
+    mean: Math.round(mean * 10) / 10,
+    stdDev: Math.round(stdDev * 10) / 10,
+    distribution,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function getPresHeatmapStats(roomId: string, step: 1 | 3): HeatmapStats | null {
+  const state = store.get(roomId);
+  if (!state) return null;
+  return calcPresHeatmapStats(roomId, state, step);
 }
