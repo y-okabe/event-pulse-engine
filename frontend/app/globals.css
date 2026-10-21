@@ -3,11 +3,16 @@
 @tailwind utilities;
 
 :root {
-  --bg: #0f172a;
-  --surface: #1e293b;
-  --border: #334155;
-  --text: #f1f5f9;
-  --muted: #94a3b8;
+  --bg: #020817;
+  --surface: #0d1b2e;
+  --border: #1e3a5f;
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --neon-blue: #00d4ff;
+  --neon-violet: #a855f7;
+  --neon-pink: #f0abfc;
+  --neon-green: #39ff14;
+  --neon-amber: #ffbe0b;
 }
 
 body {
@@ -16,7 +21,87 @@ body {
   font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
 }
 
-/* スライダーのカスタムスタイル */
+/* ─── Neon glow animations ─── */
+
+@keyframes neon-pulse {
+  0%, 100% { filter: drop-shadow(0 0 4px var(--neon-blue)) drop-shadow(0 0 12px var(--neon-blue)); opacity: 1; }
+  50%       { filter: drop-shadow(0 0 12px var(--neon-blue)) drop-shadow(0 0 32px var(--neon-violet)); opacity: 0.85; }
+}
+
+@keyframes neon-pulse-violet {
+  0%, 100% { box-shadow: 0 0 8px 2px #a855f780, 0 0 24px 4px #a855f740; }
+  50%       { box-shadow: 0 0 20px 6px #a855f7b0, 0 0 48px 12px #6366f160; }
+}
+
+@keyframes neon-pulse-green {
+  0%, 100% { box-shadow: 0 0 8px 2px #22c55e80, 0 0 24px 4px #22c55e40; }
+  50%       { box-shadow: 0 0 20px 6px #22c55eb0, 0 0 48px 12px #22c55e60; }
+}
+
+@keyframes neon-pulse-amber {
+  0%, 100% { box-shadow: 0 0 8px 2px #ffbe0b80, 0 0 24px 4px #ffbe0b40; }
+  50%       { box-shadow: 0 0 20px 6px #ffbe0bb0, 0 0 48px 12px #f59e0b60; }
+}
+
+@keyframes neon-pulse-pink {
+  0%, 100% { box-shadow: 0 0 8px 2px #f0abfc80, 0 0 24px 4px #f0abfc40; }
+  50%       { box-shadow: 0 0 20px 6px #f0abfcb0, 0 0 48px 12px #e879f960; }
+}
+
+@keyframes bar-breathe {
+  0%, 100% { opacity: 1;   filter: brightness(1)   saturate(1); }
+  50%       { opacity: 0.8; filter: brightness(1.35) saturate(1.4); }
+}
+
+@keyframes scan-line {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes grid-flow {
+  0%   { background-position: 0 0; }
+  100% { background-position: 0 60px; }
+}
+
+@keyframes text-flicker {
+  0%, 95%, 100% { opacity: 1; }
+  96%            { opacity: 0.6; }
+  97%            { opacity: 1; }
+  98%            { opacity: 0.4; }
+  99%            { opacity: 1; }
+}
+
+/* ─── Utility classes ─── */
+
+.neon-pulse        { animation: neon-pulse 2s ease-in-out infinite; }
+.neon-pulse-violet { animation: neon-pulse-violet 2s ease-in-out infinite; }
+.neon-pulse-green  { animation: neon-pulse-green  2s ease-in-out infinite; }
+.neon-pulse-amber  { animation: neon-pulse-amber  2.5s ease-in-out infinite; }
+.neon-pulse-pink   { animation: neon-pulse-pink   2s ease-in-out infinite; }
+.bar-breathe       { animation: bar-breathe 1.8s ease-in-out infinite; }
+.text-flicker      { animation: text-flicker 6s linear infinite; }
+
+/* ─── Cyber grid background ─── */
+.cyber-grid {
+  background-image:
+    linear-gradient(rgba(0,212,255,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+  animation: grid-flow 4s linear infinite;
+}
+
+/* Scan line overlay */
+.scan-line::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 40%, rgba(0,212,255,0.04) 50%, transparent 60%);
+  animation: scan-line 6s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─── スライダーのカスタムスタイル ─── */
 input[type='range'] {
   -webkit-appearance: none;
   appearance: none;
@@ -35,10 +120,10 @@ input[type='range']::-webkit-slider-thumb {
   border-radius: 50%;
   background: #6366f1;
   cursor: pointer;
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.3), 0 0 12px 4px rgba(99,102,241,0.5);
   transition: box-shadow 0.15s;
 }
 
 input[type='range']::-webkit-slider-thumb:hover {
-  box-shadow: 0 0 0 8px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 0 0 8px rgba(99, 102, 241, 0.4), 0 0 20px 8px rgba(99,102,241,0.6);
 }
