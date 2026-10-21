@@ -1,0 +1,269 @@
+// ============================================================
+// インメモリ状態管理ストア
+// ============================================================
+import { v4 as uuidv4 } from 'uuid';
+import type {
+  Room,
+  HeatmapStats,
+  QuizQuestion,
+  QuizStats,
+  QuizChoiceResult,
+  MultiSliderQuestion,
+  MultiSliderStats,
+  Confidence,
+} from '../../../shared/types/index';
+
+// ------------------------------------------------------------------
+// 型定義（サーバー内部）
+// ------------------------------------------------------------------
+interface SliderEntry {
+  value: number;
+}
+
+interface QuizAnswerEntry {
+  choiceKey: string;
+  confidence: Confidence;
+}
+
+interface MultiSliderEntry {
+  values: Record<string, number>;
+}
+
+interface RoomState {
+  room: Room;
+  participants: Set<string>; // socketId
+  // 機能①
+  sliderMap: Map<string, SliderEntry>;
+  // 機能②
+  currentQuestion: QuizQuestion | null;
+  quizAnswers: Map<string, QuizAnswerEntry>; // socketId -> answer
+  // 機能③
+  currentMultiQuestion: MultiSliderQuestion | null;
+  multiSliderMap: Map<string, MultiSliderEntry>; // socketId -> values
+}
+
+// ------------------------------------------------------------------
+// ストア本体
+// ------------------------------------------------------------------
+const store = new Map<string, RoomState>();
+
+// ------------------------------------------------------------------
+// ルーム操作
+// ------------------------------------------------------------------
+export function createRoom(title: string, mode: Room['mode']): Room {
+  const room: Room = {
+    id: uuidv4(),
+    title,
+    mode,
+    createdAt: new Date().toISOString(),
+  };
+  store.set(room.id, {
+    room,
+    participants: new Set(),
+    sliderMap: new Map(),
+    currentQuestion: null,
+    quizAnswers: new Map(),
+    currentMultiQuestion: null,
+    multiSliderMap: new Map(),
+  });
+  return room;
+}
+
+export function getRoom(roomId: string): Room | null {
+  return store.get(roomId)?.room ?? null;
+}
+
+export function listRooms(): Room[] {
+  return [...store.values()].map((s) => s.room);
+}
+
+// ------------------------------------------------------------------
+// 参加者操作
+// ------------------------------------------------------------------
+export function joinRoom(roomId: string, socketId: string): boolean {
+  const state = store.get(roomId);
+  if (!state) return false;
+  state.participants.add(socketId);
+  return true;
+}
+
+export function leaveRoom(socketId: string): string | null {
+  for (const [roomId, state] of store) {
+    if (state.participants.has(socketId)) {
+      state.participants.delete(socketId);
+      state.sliderMap.delete(socketId);
+      state.quizAnswers.delete(socketId);
+      state.multiSliderMap.delete(socketId);
+      return roomId;
+    }
+  }
+  return null;
+}
+
+export function getParticipantCount(roomId: string): number {
+  return store.get(roomId)?.participants.size ?? 0;
+}
+
+// ------------------------------------------------------------------
+// 機能① ヒートマップ集計
+// ------------------------------------------------------------------
+export function updateSlider(roomId: string, socketId: string, value: number): HeatmapStats | null {
+  const state = store.get(roomId);
+  if (!state) return null;
+  state.sliderMap.set(socketId, { value });
+  return calcHeatmapStats(roomId, state);
+}
+
+function calcHeatmapStats(roomId: string, state: RoomState): HeatmapStats {
+  const values = [...state.sliderMap.values()].map((e) => e.value);
+  const count = values.length;
+  const mean = count > 0 ? values.reduce((a, b) => a + b, 0) / count : 0;
+  const variance =
+    count > 0 ? values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / count : 0;
+  const stdDev = Math.sqrt(variance);
+
+  // 0〜100 を 10 ビン（0-9, 10-19, ...90-100）
+  const distribution = Array(10).fill(0) as number[];
+  for (const v of values) {
+    const bin = Math.min(Math.floor(v / 10), 9);
+    distribution[bin]++;
+  }
+
+  return {
+    roomId,
+    count,
+    mean: Math.round(mean * 10) / 10,
+    stdDev: Math.round(stdDev * 10) / 10,
+    distribution,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function getHeatmapStats(roomId: string): HeatmapStats | null {
+  const state = store.get(roomId);
+  if (!state) return null;
+  return calcHeatmapStats(roomId, state);
+}
+
+// ------------------------------------------------------------------
+// 機能② クイズ
+// ------------------------------------------------------------------
+export function startQuiz(roomId: string, question: QuizQuestion): boolean {
+  const state = store.get(roomId);
+  if (!state) return false;
+  state.currentQuestion = question;
+  state.quizAnswers.clear();
+  return true;
+}
+
+export function submitQuizAnswer(
+  roomId: string,
+  socketId: string,
+  choiceKey: string,
+  confidence: Confidence
+): QuizStats | null {
+  const state = store.get(roomId);
+  if (!state || !state.currentQuestion) return null;
+  state.quizAnswers.set(socketId, { choiceKey, confidence });
+  return calcQuizStats(roomId, state);
+}
+
+function calcQuizStats(roomId: string, state: RoomState): QuizStats {
+  const q = state.currentQuestion!;
+  const totalAnswers = state.quizAnswers.size;
+
+  const results: QuizChoiceResult[] = q.choices.map((c: { key: string; label: string }) => {
+    const answers = [...state.quizAnswers.values()].filter((a) => a.choiceKey === c.key);
+    const count = answers.length;
+    const confidenceBreakdown: Record<Confidence, number> = {
+      intuition: 0,
+      unsure: 0,
+      confident: 0,
+    };
+    for (const a of answers) confidenceBreakdown[a.confidence]++;
+    return {
+      key: c.key,
+      label: c.label,
+      count,
+      percentage: totalAnswers > 0 ? Math.round((count / totalAnswers) * 100) : 0,
+      confidenceBreakdown,
+      isCorrect: q.correctKey !== null ? c.key === q.correctKey : null,
+    };
+  });
+
+  return {
+    roomId,
+    questionId: q.id,
+    totalAnswers,
+    results,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function getQuizStats(roomId: string): QuizStats | null {
+  const state = store.get(roomId);
+  if (!state || !state.currentQuestion) return null;
+  return calcQuizStats(roomId, state);
+}
+
+export function getCurrentQuestion(roomId: string): QuizQuestion | null {
+  return store.get(roomId)?.currentQuestion ?? null;
+}
+
+// ------------------------------------------------------------------
+// 機能③ 多軸スライダー投票
+// ------------------------------------------------------------------
+export function startMultiSlider(roomId: string, question: MultiSliderQuestion): boolean {
+  const state = store.get(roomId);
+  if (!state) return false;
+  state.currentMultiQuestion = question;
+  state.multiSliderMap.clear();
+  return true;
+}
+
+export function updateMultiSlider(
+  roomId: string,
+  socketId: string,
+  values: Record<string, number>
+): MultiSliderStats | null {
+  const state = store.get(roomId);
+  if (!state || !state.currentMultiQuestion) return null;
+  state.multiSliderMap.set(socketId, { values });
+  return calcMultiSliderStats(roomId, state);
+}
+
+function calcMultiSliderStats(roomId: string, state: RoomState): MultiSliderStats {
+  const q = state.currentMultiQuestion!;
+  const count = state.multiSliderMap.size;
+
+  const choiceStats: { key: string; label: string; mean: number; isTop: boolean }[] = q.choices.map((c: { key: string; label: string }) => {
+    const vals = [...state.multiSliderMap.values()].map((e) => e.values[c.key] ?? 0);
+    const mean =
+      vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+    return { key: c.key, label: c.label, mean: Math.round(mean * 10) / 10, isTop: false };
+  });
+
+  // 最高値の択を特定
+  const maxMean = Math.max(...choiceStats.map((s: { mean: number }) => s.mean));
+  const topKey = choiceStats.find((s: { mean: number; key: string }) => s.mean === maxMean)?.key ?? '';
+  for (const s of choiceStats) s.isTop = s.key === topKey;
+
+  return {
+    roomId,
+    questionId: q.id,
+    count,
+    choices: choiceStats,
+    topKey,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function getMultiSliderStats(roomId: string): MultiSliderStats | null {
+  const state = store.get(roomId);
+  if (!state || !state.currentMultiQuestion) return null;
+  return calcMultiSliderStats(roomId, state);
+}
+
+export function getCurrentMultiQuestion(roomId: string): MultiSliderQuestion | null {
+  return store.get(roomId)?.currentMultiQuestion ?? null;
+}
