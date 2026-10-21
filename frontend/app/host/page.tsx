@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Room } from '@eventpulse/shared';
 
@@ -11,6 +11,26 @@ export default function HostPage() {
   const [mode, setMode] = useState<Room['mode']>('heatmap');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // 開催中ルーム一覧
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [roomsLoading, setRoomsLoading] = useState(false);
+
+  const fetchRooms = useCallback(async () => {
+    setRoomsLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/rooms`);
+      if (res.ok) setRooms(await res.json());
+    } catch {
+      // フェッチ失敗は無視（一覧は補助機能）
+    } finally {
+      setRoomsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRooms();
+  }, [fetchRooms]);
 
   async function createRoom() {
     if (!title.trim()) { setError('タイトルを入力してください'); return; }
@@ -32,6 +52,12 @@ export default function HostPage() {
     }
   }
 
+  const MODE_LABEL: Record<Room['mode'], string> = {
+    heatmap: '感情 & 納得度ヒートマップ',
+    quiz: '確信度つきクイズ',
+    multi_slider: '各択スライダー投票',
+  };
+
   const MODE_OPTIONS: { value: Room['mode']; label: string; desc: string }[] = [
     { value: 'heatmap', label: '①感情 & 納得度ヒートマップ', desc: '参加者がスライダーで0〜100%をリアルタイム操作' },
     { value: 'quiz', label: '②確信度つきクイズ', desc: '選択肢＋確信度（直感/半信半疑/確信）で回答' },
@@ -42,6 +68,48 @@ export default function HostPage() {
     <main className="min-h-screen flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-lg space-y-6">
         <h1 className="text-2xl font-bold text-indigo-300">🎤 主催者ダッシュボード — ルーム作成</h1>
+
+        {/* 開催中ルーム一覧 */}
+        <section className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-300">開催中のルーム</h2>
+            <button
+              onClick={fetchRooms}
+              disabled={roomsLoading}
+              className="text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-40"
+            >
+              {roomsLoading ? '更新中...' : '↻ 更新'}
+            </button>
+          </div>
+          {rooms.length === 0 ? (
+            <p className="text-xs text-slate-500 py-2">
+              {roomsLoading ? '取得中...' : 'まだルームがありません'}
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {rooms.map((r) => (
+                <li key={r.id}>
+                  <button
+                    onClick={() => router.push(`/host/${r.id}`)}
+                    className="w-full text-left rounded-xl border border-slate-700 bg-slate-800/60 hover:border-indigo-500 hover:bg-indigo-500/10 px-4 py-3 transition-all"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-slate-200 truncate">{r.title}</span>
+                      <span className="shrink-0 text-xs text-indigo-400 bg-indigo-500/10 border border-indigo-500/30 rounded-lg px-2 py-0.5">
+                        {MODE_LABEL[r.mode]}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      作成: {new Date(r.createdAt).toLocaleString('ja-JP')}
+                    </p>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <hr className="border-slate-700" />
 
         <div className="space-y-2">
           <label className="text-sm text-slate-400">セッションタイトル</label>
