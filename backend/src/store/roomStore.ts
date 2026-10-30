@@ -12,7 +12,9 @@ import type {
   MultiSliderStats,
   Confidence,
   PresentationStep,
+  SnapshotEntry,
 } from '../../../shared/types/index';
+import { SNAPSHOT_INTERVAL_MS } from '../../../shared/types/index';
 
 // ------------------------------------------------------------------
 // 型定義（サーバー内部）
@@ -46,6 +48,10 @@ interface RoomState {
   // プレゼンQ別スライダー（Q1/Q3用）
   presSliderQ1: Map<string, SliderEntry>;
   presSliderQ3: Map<string, SliderEntry>;
+  // 時系列スナップショット
+  snapshots: SnapshotEntry[];
+  snapshotTimer: ReturnType<typeof setInterval> | null;
+  snapshotEmitCallback: ((entry: SnapshotEntry) => void) | null;
 }
 
 // ------------------------------------------------------------------
@@ -63,7 +69,8 @@ export function createRoom(title: string, mode: Room['mode']): Room {
     mode,
     createdAt: new Date().toISOString(),
   };
-  store.set(room.id, {
+  const roomId = room.id;
+  const state: RoomState = {
     room,
     participants: new Set(),
     sliderMap: new Map(),
@@ -74,7 +81,21 @@ export function createRoom(title: string, mode: Room['mode']): Room {
     presentationStep: 0,
     presSliderQ1: new Map(),
     presSliderQ3: new Map(),
-  });
+    snapshots: [],
+    snapshotTimer: null,
+    snapshotEmitCallback: null,
+  };
+  store.set(roomId, state);
+
+  // 定期的にスナップショットを記録して接続中クライアントへ push
+  state.snapshotTimer = setInterval(() => {
+    const snap = buildSnapshot(roomId, state);
+    if (snap) {
+      state.snapshots.push(snap);
+      state.snapshotEmitCallback?.(snap);
+    }
+  }, SNAPSHOT_INTERVAL_MS);
+
   return room;
 }
 
@@ -372,4 +393,98 @@ export function getPresHeatmapStats(roomId: string, step: 1 | 3): HeatmapStats |
   const state = store.get(roomId);
   if (!state) return null;
   return calcPresHeatmapStats(roomId, state, step);
+}
+
+// ------------------------------------------------------------------
+// 時系列スナップショット
+// ------------------------------------------------------------------
+
+/**
+ * 現時点の集計値から SnapshotEntry を生成する。
+ * データが1件もない場合は null を返す（空スナップショットを記録しない）。
+ */
+function buildSnapshot(roomId: string, state: RoomState): SnapshotEntry | null {
+  const timestamp = new Date().toISOString();
+  const mode = state.room.mode;
+
+  if (mode === 'heatmap') {
+    if (state.sliderMap.size === 0) return null;
+    const stats = calcHeatmapStats(roomId, state);
+    return {
+      timestamp,
+      count: stats.count,
+      mean: stats.mean,
+      stdDev: stats.stdDev,
+      distribution: stats.distribution,
+    };
+  }
+
+  if (mode === 'multi_slider') {
+    if (state.multiSliderMap.size === 0 || !state.currentMultiQuestion) return null;
+    const stats = calcMultiSliderStats(roomId, state);
+    const choiceMeans: Record<string, number> = {};
+    for (const c of stats.choices) choiceMeans[c.key] = c.mean;
+    return { timestamp, count: stats.count, choiceMeans };
+  }
+
+  if (mode === 'presentation') {
+    const step = state.presentationStep;
+    if (step === 0) return null;
+
+    if (step === 1) {
+      if (state.presSliderQ1.size === 0) return null;
+      const stats = calcPresHeatmapStats(roomId, state, 1);
+      return {
+        timestamp,
+        count: stats.count,
+        presQ1Mean: stats.mean,
+        presQ1StdDev: stats.stdDev,
+        presentationStep: step,
+      };
+    }
+    if (step === 2) {
+      if (state.multiSliderMap.size === 0 || !state.currentMultiQuestion) return null;
+      const stats = calcMultiSliderStats(roomId, state);
+      const choiceMeans: Record<string, number> = {};
+      for (const c of stats.choices) choiceMeans[c.key] = c.mean;
+      return { timestamp, count: stats.count, choiceMeans, presentationStep: step };
+    }
+    if (step === 3) {
+      if (state.presSliderQ3.size === 0) return null;
+      const stats = calcPresHeatmapStats(roomId, state, 3);
+      return {
+        timestamp,
+        count: stats.count,
+        presQ3Mean: stats.mean,
+        presQ3StdDev: stats.stdDev,
+        presentationStep: step,
+      };
+    }
+    return null;
+  }
+
+  // quiz モードはスナップショット対象外（回答は1回確定なのでリアルタイムで十分）
+  return null;
+}
+
+/** 指定ルームのスナップショット履歴を取得 */
+export function getSnapshots(roomId: string): SnapshotEntry[] {
+  return store.get(roomId)?.snapshots ?? [];
+}
+
+/** スナップショット発火時に呼ばれる emit コールバックを登録（handlers.ts から io で設定） */
+export function setSnapshotEmitCallback(
+  roomId: string,
+  callback: (entry: SnapshotEntry) => void
+): void {
+  const state = store.get(roomId);
+  if (state) state.snapshotEmitCallback = callback;
+}
+
+/** スナップショットタイマーを停止してルームを削除（将来の掃除用） */
+export function deleteRoom(roomId: string): void {
+  const state = store.get(roomId);
+  if (!state) return;
+  if (state.snapshotTimer) clearInterval(state.snapshotTimer);
+  store.delete(roomId);
 }

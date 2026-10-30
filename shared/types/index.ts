@@ -140,6 +140,46 @@ export interface MultiSliderChoiceStats {
 }
 
 // ------------------------------------------------------------------
+// 時系列スナップショット
+// ------------------------------------------------------------------
+
+/** スナップショット収集間隔 (ms) */
+export const SNAPSHOT_INTERVAL_MS = 10_000;
+
+/**
+ * 定期的に記録されるスナップショット。
+ * mode によって使用するフィールドが異なる:
+ *   heatmap          → mean, stdDev, count, distribution
+ *   multi_slider     → count, choiceMeans
+ *   presentation Q1/Q3 → presQ1Mean, presQ1StdDev, presQ3Mean, presQ3StdDev
+ *   presentation Q2  → choiceMeans
+ */
+export interface SnapshotEntry {
+  /** 記録時刻 (ISO 8601) */
+  timestamp: string;
+  /** 参加者数 */
+  count: number;
+  /** ヒートマップ平均値 (heatmap) */
+  mean?: number;
+  /** ヒートマップ標準偏差 (heatmap) */
+  stdDev?: number;
+  /** ヒートマップ分布 (10ビン) */
+  distribution?: number[];
+  /** 多軸スライダー各択平均値 { key: mean } */
+  choiceMeans?: Record<string, number>;
+  /** プレゼンQ1ヒートマップ平均 */
+  presQ1Mean?: number;
+  /** プレゼンQ1ヒートマップ標準偏差 */
+  presQ1StdDev?: number;
+  /** プレゼンQ3ヒートマップ平均 */
+  presQ3Mean?: number;
+  /** プレゼンQ3ヒートマップ標準偏差 */
+  presQ3StdDev?: number;
+  /** 現在のプレゼンQステップ */
+  presentationStep?: number;
+}
+
+// ------------------------------------------------------------------
 // Socket.io イベント名の定数
 // ------------------------------------------------------------------
 export const EVENTS = {
@@ -171,6 +211,10 @@ export const EVENTS = {
 
   // エラー
   ERROR: 'error',
+
+  // 時系列スナップショット
+  SNAPSHOT_HISTORY: 'snapshot_history',
+  SNAPSHOT_PUSH: 'snapshot_push',
 } as const;
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];

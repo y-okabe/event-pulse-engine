@@ -29,6 +29,8 @@ import {
   getPresentationStep,
   updatePresSlider,
   getPresHeatmapStats,
+  getSnapshots,
+  setSnapshotEmitCallback,
 } from '../store/roomStore';
 
 // デバウンス用タイマー管理（socketId → timer）
@@ -58,6 +60,17 @@ export function registerSocketHandlers(io: Server): void {
         currentQuestion: getCurrentQuestion(roomId),
         currentMultiQuestion: getCurrentMultiQuestion(roomId),
         presentationStep: getPresentationStep(roomId),
+      });
+
+      // 接続時にスナップショット履歴を送信
+      const history = getSnapshots(roomId);
+      if (history.length > 0) {
+        socket.emit(EVENTS.SNAPSHOT_HISTORY, { roomId, history });
+      }
+
+      // タイマー発火時に io でルーム全員へ push するコールバックを登録
+      setSnapshotEmitCallback(roomId, (entry) => {
+        io.to(roomId).emit(EVENTS.SNAPSHOT_PUSH, entry);
       });
 
       // 参加者数をルーム全員にブロードキャスト

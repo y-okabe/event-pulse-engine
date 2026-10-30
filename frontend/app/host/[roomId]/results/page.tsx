@@ -4,13 +4,19 @@ import { useRoom } from '../../../../hooks/useRoom';
 import HeatmapChart from '../../../../components/HeatmapChart';
 import QuizResultChart from '../../../../components/QuizResultChart';
 import MultiSliderChart from '../../../../components/MultiSliderChart';
+import HistoryChart from '../../../../components/HistoryChart';
 
 interface Props {
   params: { roomId: string };
 }
 
+type ViewTab = 'realtime' | 'history';
+
 export default function ResultsDisplayPage({ params }: Props) {
   const { roomId } = params;
+
+  /* ── タブ切り替え ── */
+  const [activeTab, setActiveTab] = useState<ViewTab>('realtime');
 
   /* ── フルスクリーン制御 ── */
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -39,6 +45,7 @@ export default function ResultsDisplayPage({ params }: Props) {
     presentationStep,
     presHeatmapStatsQ1,
     presHeatmapStatsQ3,
+    snapshotHistory,
   } = useRoom(roomId);
 
   return (
@@ -148,6 +155,33 @@ export default function ResultsDisplayPage({ params }: Props) {
         </div>
       </header>
 
+      {/* ── タブバー ── */}
+      <div
+        className="relative flex items-center gap-1 px-8 py-2 shrink-0 z-10"
+        style={{ borderBottom: '1px solid rgba(0,212,255,0.12)' }}
+      >
+        {(['realtime', 'history'] as ViewTab[]).map((tab) => {
+          const label = tab === 'realtime' ? '⚡ リアルタイム' : '📈 推移';
+          const active = activeTab === tab;
+          return (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className="px-4 py-1.5 rounded-lg text-sm font-bold font-mono transition-all"
+              style={{
+                color: active ? '#020817' : 'rgba(0,212,255,0.6)',
+                background: active ? '#00d4ff' : 'transparent',
+                boxShadow: active ? '0 0 14px rgba(0,212,255,0.55)' : 'none',
+                border: active ? 'none' : '1px solid rgba(0,212,255,0.25)',
+                letterSpacing: '0.05em',
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
       {/* ── コンテンツエリア ── */}
       <div
         className="relative flex-1 flex flex-col items-center justify-center z-10"
@@ -162,6 +196,70 @@ export default function ResultsDisplayPage({ params }: Props) {
             <NeonChartWrapper fullscreen={isFullscreen}>{content}</NeonChartWrapper>
           );
 
+          // ──────────────────────────────────────────
+          // 推移タブ
+          // ──────────────────────────────────────────
+          if (activeTab === 'history') {
+            if (!room) return (
+              <p className="text-lg font-mono text-flicker" style={{ color: '#a855f7' }}>
+                INITIALIZING...
+              </p>
+            );
+            const q2ChoiceLabels: Record<string, string> = {
+              A: '今回の開発プロセスと爆速構築の全容',
+              B: '手動（人間）開発 vs Bob（AI）開発の決定的な差',
+              C: 'WebSocket・リアルタイムアニメーション実装の難所突破術',
+              D: 'Bob（AI）を相棒として使いこなすプロンプトのコツ',
+            };
+
+            // presentation モードは現在進行中のステップのチャートのみ表示
+            if (room.mode === 'presentation') {
+              if (presentationStep === 0) return (
+                <div className="flex flex-col items-center justify-center gap-4 py-24">
+                  <div className="text-5xl" style={{ filter: 'drop-shadow(0 0 12px #00d4ff)' }}>⏳</div>
+                  <p className="text-xl font-bold text-flicker" style={{ color: '#00d4ff', textShadow: '0 0 10px #00d4ff80' }}>
+                    WAITING FOR QUESTION...
+                  </p>
+                </div>
+              );
+              const presChartConfig = {
+                1: { title: 'Q1 — この発表の楽しみ度合いは？', labels: undefined as Record<string, string> | undefined },
+                2: { title: 'Q2 — 一番聴きたいトピックは？', labels: q2ChoiceLabels },
+                3: { title: 'Q3 — このアプリを使ってみたい？楽しい？役に立ちそう？', labels: undefined as Record<string, string> | undefined },
+              } as const;
+              const cfg = presChartConfig[presentationStep];
+              return (
+                <div className={wrapCls}>
+                  <SectionTitle step="📈">{cfg.title}（10秒単位）</SectionTitle>
+                  {chart(
+                    <HistoryChart
+                      key={presentationStep}
+                      history={snapshotHistory}
+                      mode="presentation"
+                      presentationStep={presentationStep}
+                      choiceLabels={cfg.labels}
+                    />
+                  )}
+                </div>
+              );
+            }
+
+            return (
+              <div className={wrapCls}>
+                <SectionTitle step="📈">時間軸による推移（10秒単位）</SectionTitle>
+                {chart(
+                  <HistoryChart
+                    history={snapshotHistory}
+                    mode={room.mode}
+                  />
+                )}
+              </div>
+            );
+          }
+
+          // ──────────────────────────────────────────
+          // リアルタイムタブ（既存の表示）
+          // ──────────────────────────────────────────
           if (room?.mode === 'heatmap') return (
             <div className={wrapCls}>
               <SectionTitle step="①">納得度ヒートマップ — リアルタイム集計</SectionTitle>
