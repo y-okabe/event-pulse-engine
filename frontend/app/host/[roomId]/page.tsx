@@ -1,10 +1,10 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRoom } from '../../../hooks/useRoom';
 import HeatmapChart from '../../../components/HeatmapChart';
 import QuizResultChart from '../../../components/QuizResultChart';
 import MultiSliderChart from '../../../components/MultiSliderChart';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { EVENTS } from '@eventpulse/shared';
 import type { QuizQuestion, MultiSliderQuestion } from '@eventpulse/shared';
 import { v4 as uuidv4 } from 'uuid';
@@ -18,6 +18,8 @@ interface Props {
 
 export default function HostRoomPage({ params }: Props) {
   const { roomId } = params;
+  const qrWrapRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
   const {
     socket,
     connected,
@@ -100,10 +102,50 @@ export default function HostRoomPage({ params }: Props) {
       {/* QRコード */}
       <div className="rounded-2xl border border-slate-700 bg-slate-800/60 p-4 flex flex-col items-center gap-3">
         <p className="text-sm text-slate-400">参加者はこちらのQRコードを読み取ってください</p>
-        <div className="bg-white p-3 rounded-xl">
-          <QRCodeSVG value={participantUrl} size={160} />
+        <div className="bg-white p-3 rounded-xl" ref={qrWrapRef}>
+          <QRCodeCanvas value={participantUrl} size={160} />
         </div>
-        <p className="text-xs text-slate-500 break-all">{participantUrl}</p>
+
+        {/* 参加URL：リンク化 */}
+        <a
+          href={participantUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-indigo-400 hover:text-indigo-300 underline underline-offset-2 break-all transition-colors text-center"
+        >
+          {participantUrl}
+        </a>
+
+        {/* ボタン行 */}
+        <div className="flex gap-2 w-full">
+          {/* URLコピーボタン */}
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(participantUrl).then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              });
+            }}
+            className="flex-1 rounded-xl bg-slate-700 hover:bg-slate-600 border border-slate-600 py-2 text-sm font-semibold text-slate-200 transition-colors"
+          >
+            {copied ? '✅ コピーしました' : '📋 URLをコピー'}
+          </button>
+
+          {/* QR画像保存ボタン */}
+          <button
+            onClick={() => {
+              const canvas = qrWrapRef.current?.querySelector('canvas');
+              if (!canvas) return;
+              const link = document.createElement('a');
+              link.download = `qr-${roomId}.png`;
+              link.href = canvas.toDataURL('image/png');
+              link.click();
+            }}
+            className="flex-1 rounded-xl bg-slate-700 hover:bg-slate-600 border border-slate-600 py-2 text-sm font-semibold text-slate-200 transition-colors"
+          >
+            💾 QR画像を保存
+          </button>
+        </div>
       </div>
 
       {/* モード別コンテンツ */}
