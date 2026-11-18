@@ -1,0 +1,35 @@
+services:
+  # ── Backend (Express + Socket.IO) ──────────────────────────────────────────
+  - type: web
+    name: eventpulse-backend
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: .
+    region: singapore   # 最寄りのリージョンに変更可
+    plan: free          # starter / standard / pro に変更可
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "4000"
+      - key: FRONTEND_URL
+        # デプロイ後にフロントエンドの実際の URL に更新してください
+        # 例: https://eventpulse-frontend.onrender.com
+        sync: false
+
+  # ── Frontend (Next.js) ─────────────────────────────────────────────────────
+  - type: web
+    name: eventpulse-frontend
+    runtime: docker
+    dockerfilePath: frontend/Dockerfile
+    dockerContext: .
+    region: singapore   # backend と同じリージョンを推奨
+    plan: free
+    # NEXT_PUBLIC_BACKEND_URL はビルド時 ARG のため、
+    # Render の "Build Args" として渡す必要があります。
+    # render.yaml では envVars に記載しますが、
+    # Render はこれを自動的に Docker build-arg に昇格させます。
+    envVars:
+      - key: NEXT_PUBLIC_BACKEND_URL
+        # デプロイ後にバックエンドの実際の URL に更新してください
+        # 例: https://eventpulse-backend.onrender.com
+        sync: false
