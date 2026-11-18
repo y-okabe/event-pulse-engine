@@ -16,6 +16,9 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+# BACKEND_URL は Render が実行時に注入する環境変数。
+# next.config.js の rewrites() が実行時に読むため、ここでデフォルト値だけ定義する。
+ENV BACKEND_URL=http://localhost:4000
 COPY --from=builder /app/frontend/.next ./.next
 COPY frontend/public ./public
 COPY --from=builder /app/frontend/package.json .
