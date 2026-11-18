@@ -3,7 +3,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Room } from '@eventpulse/shared';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:4000';
+// '' = 相対パス。Next.js の rewrites が /api/backend/* をバックエンドへ転送する
+const BACKEND_URL = '/api/backend';
 
 export default function HostPage() {
   const router = useRouter();

@@ -12,9 +12,11 @@ services:
       - key: PORT
         value: "4000"
       - key: FRONTEND_URL
-        # デプロイ後にフロントエンドの実際の URL に更新してください
-        # 例: https://eventpulse-frontend.onrender.com
-        sync: false
+        # 同じ Blueprint 内のフロントエンドサービスの URL を自動参照
+        fromService:
+          name: eventpulse-frontend
+          type: web
+          property: host   # → https://eventpulse-frontend.onrender.com 形式
 
   # ── Frontend (Next.js) ─────────────────────────────────────────────────────
   - type: web
@@ -24,12 +26,11 @@ services:
     dockerContext: .
     region: singapore   # backend と同じリージョンを推奨
     plan: free
-    # NEXT_PUBLIC_BACKEND_URL はビルド時 ARG のため、
-    # Render の "Build Args" として渡す必要があります。
-    # render.yaml では envVars に記載しますが、
-    # Render はこれを自動的に Docker build-arg に昇格させます。
     envVars:
-      - key: NEXT_PUBLIC_BACKEND_URL
-        # デプロイ後にバックエンドの実際の URL に更新してください
-        # 例: https://eventpulse-backend.onrender.com
-        sync: false
+      - key: BACKEND_URL
+        # 同じ Blueprint 内のバックエンドサービスの URL を自動参照
+        # → Next.js の rewrites() で実行時に読まれるため build-arg 不要
+        fromService:
+          name: eventpulse-backend
+          type: web
+          property: host   # → https://eventpulse-backend.onrender.com 形式
