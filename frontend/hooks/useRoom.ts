@@ -11,8 +11,8 @@ import type {
   PresentationStep,
 } from '@eventpulse/shared';
 
-// '' = 相対パス。Next.js の rewrites が /socket.io/* をバックエンドへ転送する
-const BACKEND_URL = '';
+// NEXT_PUBLIC_BACKEND_URL はビルド時に next build へ焼き込まれる
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:4000';
 
 export interface RoomState {
   socket: Socket | null;

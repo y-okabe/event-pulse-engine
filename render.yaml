@@ -24,12 +24,8 @@ services:
     dockerContext: .
     region: singapore   # backend と同じリージョンを推奨
     plan: free
-    # next.config.js の rewrites() は next build 時に評価・焼き込まれるため
-    # 環境変数ではなくビルド引数 (buildArgs) で渡す必要がある。
-    buildArgs:
-      - key: BACKEND_URL
-        value: "https://eventpulse-backend-urub.onrender.com"
     envVars:
-      - key: BACKEND_URL
-        # ランタイム参照用（念のため残す）
+      # NEXT_PUBLIC_ 変数は Render が next build 時に --build-arg として自動注入する。
+      # クライアント側コードに焼き込まれ、Socket.IO 接続先・fetch 先として使われる。
+      - key: NEXT_PUBLIC_BACKEND_URL
         value: "https://eventpulse-backend-urub.onrender.com"

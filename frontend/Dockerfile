@@ -9,10 +9,8 @@ COPY --from=deps /app/frontend/node_modules ./frontend/node_modules
 COPY frontend/ ./frontend/
 COPY shared/ ./shared/
 WORKDIR /app/frontend
-# BACKEND_URL: next.config.js の rewrites() が next build 時に評価・焼き込むため
-# ビルド引数として渡す必要がある。render.yaml の buildArgs で上書きされる。
-ARG BACKEND_URL=http://localhost:4000
-ENV BACKEND_URL=$BACKEND_URL
+# NEXT_PUBLIC_BACKEND_URL: next build 時に焼き込まれる。
+# render.yaml の envVars で渡すと Render がビルド時に --build-arg として注入する。
 ARG NEXT_PUBLIC_BACKEND_URL=http://localhost:4000
 ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
 RUN npm run build
