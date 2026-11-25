@@ -9,6 +9,7 @@ import type {
   MultiSliderQuestion,
   MultiSliderStats,
   PresentationStep,
+  SnapshotEntry,
 } from '@eventpulse/shared';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:4000';
@@ -30,6 +31,8 @@ export interface RoomState {
   presentationStep: PresentationStep;
   presHeatmapStatsQ1: HeatmapStats | null;
   presHeatmapStatsQ3: HeatmapStats | null;
+  // 時系列スナップショット
+  snapshotHistory: SnapshotEntry[];
 }
 
 export function useRoom(roomId: string): RoomState {
@@ -47,6 +50,7 @@ export function useRoom(roomId: string): RoomState {
     presentationStep: 0,
     presHeatmapStatsQ1: null,
     presHeatmapStatsQ3: null,
+    snapshotHistory: [],
   });
 
   useEffect(() => {
@@ -113,6 +117,16 @@ export function useRoom(roomId: string): RoomState {
     });
     socket.on('pres_heatmap_stats_3', (stats: HeatmapStats) => {
       setState((s) => ({ ...s, presHeatmapStatsQ3: stats }));
+    });
+
+    // 時系列スナップショット: 初回接続時に全履歴を受信
+    socket.on(EVENTS.SNAPSHOT_HISTORY, (data: { roomId: string; history: SnapshotEntry[] }) => {
+      setState((s) => ({ ...s, snapshotHistory: data.history }));
+    });
+
+    // 時系列スナップショット: 新規エントリのプッシュ
+    socket.on(EVENTS.SNAPSHOT_PUSH, (entry: SnapshotEntry) => {
+      setState((s) => ({ ...s, snapshotHistory: [...s.snapshotHistory, entry] }));
     });
 
     return () => {
