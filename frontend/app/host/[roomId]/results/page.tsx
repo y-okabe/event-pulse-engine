@@ -315,7 +315,7 @@ export default function ResultsDisplayPage({ params }: Props) {
               const cfg = presChartConfig[presentationStep];
               return (
                 <div className={wrapCls}>
-                  <SectionTitle step="📈">{cfg.title}（10秒単位）</SectionTitle>
+                  <SectionTitle step="📈" theme={theme}>{cfg.title}（10秒単位）</SectionTitle>
                   {chart(
                     <HistoryChart
                       key={presentationStep}
@@ -331,7 +331,7 @@ export default function ResultsDisplayPage({ params }: Props) {
 
             return (
               <div className={wrapCls}>
-                <SectionTitle step="📈">時間軸による推移（10秒単位）</SectionTitle>
+                <SectionTitle step="📈" theme={theme}>時間軸による推移（10秒単位）</SectionTitle>
                 {chart(
                   <HistoryChart
                     history={snapshotHistory}
