@@ -15,6 +15,20 @@
   --neon-amber: #ffbe0b;
 }
 
+/* ライトモード用 CSS 変数（results ページのトグルで参照） */
+.theme-light {
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --border: rgba(100,116,139,0.20);
+  --text: #1e293b;
+  --muted: #64748b;
+  --accent-blue: #2563eb;
+  --accent-violet: #7c3aed;
+  --accent-pink: #a21caf;
+  --accent-green: #16a34a;
+  --accent-amber: #d97706;
+}
+
 body {
   background-color: var(--bg);
   color: var(--text);

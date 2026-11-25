@@ -3,16 +3,21 @@ import { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import type { HeatmapStats } from '@eventpulse/shared';
 
+type Theme = 'dark' | 'light';
+
 interface Props {
   stats: HeatmapStats;
+  theme?: Theme;
 }
 
 const BIN_LABELS = ['0-9', '10-19', '20-29', '30-39', '40-49', '50-59', '60-69', '70-79', '80-89', '90-100'];
 
 /* ── 3本ラインの定義 ── */
 interface WaveConfig {
-  color: string;
-  glowColor: string;
+  darkColor: string;
+  lightColor: string;
+  darkGlow: string;
+  lightGlow: string;
   amplitude: number;   // 波の振れ幅 (px)
   frequency: number;   // 1ライン上の波の個数
   speed: number;       // 位相速度 (rad/frame)
@@ -24,8 +29,10 @@ interface WaveConfig {
 
 const WAVES: WaveConfig[] = [
   {
-    color:       '#00d4ff',
-    glowColor:   '#00d4ff',
+    darkColor:  '#00d4ff',
+    lightColor: '#2563eb',
+    darkGlow:   '#00d4ff',
+    lightGlow:  '#2563eb',
     amplitude:   6,
     frequency:   2.5,
     speed:       0.025,
@@ -35,8 +42,10 @@ const WAVES: WaveConfig[] = [
     fillOpacity: 0.18,
   },
   {
-    color:       '#a855f7',
-    glowColor:   '#a855f7',
+    darkColor:  '#a855f7',
+    lightColor: '#7c3aed',
+    darkGlow:   '#a855f7',
+    lightGlow:  '#7c3aed',
     amplitude:   4,
     frequency:   3.8,
     speed:       0.038,
@@ -46,8 +55,10 @@ const WAVES: WaveConfig[] = [
     fillOpacity: 0,
   },
   {
-    color:       '#f0abfc',
-    glowColor:   '#f0abfc',
+    darkColor:  '#f0abfc',
+    lightColor: '#a21caf',
+    darkGlow:   '#f0abfc',
+    lightGlow:  '#a21caf',
     amplitude:   2.5,
     frequency:   5.5,
     speed:       0.055,
@@ -62,6 +73,7 @@ const WAVES: WaveConfig[] = [
 interface ChartCanvasProps {
   distribution: number[];
   mean: number;
+  theme: Theme;
 }
 
 /* 線形補間 */
@@ -69,10 +81,13 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 /* 補間速度: 1フレームあたり何割近づくか (0〜1) */
 const LERP_SPEED = 0.06;
 
-function ChartCanvas({ distribution, mean }: ChartCanvasProps) {
+function ChartCanvas({ distribution, mean, theme }: ChartCanvasProps) {
+  const isDark = theme === 'dark';
   const canvasRef  = useRef<HTMLCanvasElement>(null);
   const rafRef     = useRef<number>(0);
   const phases     = useRef<number[]>(WAVES.map((w) => w.phaseInit));
+  const themeRef   = useRef<Theme>(theme);
+  themeRef.current = theme;
 
   // 「現在表示中の値」— RAFループが毎フレーム lerp で目標に近づける
   const displayRef = useRef({
@@ -108,15 +123,15 @@ function ChartCanvas({ distribution, mean }: ChartCanvasProps) {
     const PAD_L = 36, PAD_R = 12, PAD_T = 32, PAD_B = 48;
 
     const draw = () => {
+      const currentTheme = themeRef.current;
+      const dark = currentTheme === 'dark';
+
       /* ── 表示値を目標値へ lerp ── */
       const target = targetRef.current;
       const disp   = displayRef.current;
       const targetMax = Math.max(...target.distribution, 1);
 
-      // maxVal は「現在値と目標値の大きい方」を常に使う
-      // → データが増えた瞬間でもスケール不足による100%超えを防ぐ
       disp.maxVal = Math.max(lerp(disp.maxVal, targetMax, LERP_SPEED), targetMax);
-
       disp.mean = lerp(disp.mean, target.mean, LERP_SPEED);
       for (let i = 0; i < disp.distribution.length; i++) {
         disp.distribution[i] = lerp(
@@ -136,11 +151,7 @@ function ChartCanvas({ distribution, mean }: ChartCanvasProps) {
       const chartW = W - PAD_L - PAD_R;
       const chartH = H - PAD_T - PAD_B;
 
-      /* 波の最大振れ幅をデータ値スケールに逆算してスケールに余白を加える。
-         これにより yOf(v) + wobble が常に chartH の範囲内に収まる。  */
       const maxAmplitudePx = Math.max(...WAVES.map((w) => w.amplitude));
-      // px → データ値スケール: amplitude_data = amplitude_px * maxVal / chartH
-      // ゼロ除算を避けるため chartH が確定してから計算
       const scaledMargin = chartH > 0 ? maxAmplitudePx * maxVal / chartH : 0;
       const effectiveMax = maxVal + scaledMargin;
 
@@ -151,7 +162,7 @@ function ChartCanvas({ distribution, mean }: ChartCanvasProps) {
 
       /* ── グリッド線 ── */
       ctx.save();
-      ctx.strokeStyle = 'rgba(0,212,255,0.08)';
+      ctx.strokeStyle = dark ? 'rgba(0,212,255,0.08)' : 'rgba(100,116,139,0.15)';
       ctx.lineWidth   = 1;
       const gridLines = 4;
       for (let g = 0; g <= gridLines; g++) {
@@ -164,8 +175,6 @@ function ChartCanvas({ distribution, mean }: ChartCanvasProps) {
       ctx.restore();
 
       /* ── 各ラインを描画 ── */
-
-      /* Catmull-Rom スプライン補間でなめらかな曲線パスを構築する */
       const buildSmoothPath = (pts: [number, number][]) => {
         ctx.beginPath();
         ctx.moveTo(pts[0][0], pts[0][1]);
@@ -184,6 +193,8 @@ function ChartCanvas({ distribution, mean }: ChartCanvasProps) {
 
       WAVES.forEach((wave, wi) => {
         const phase = phases.current[wi];
+        const color     = dark ? wave.darkColor : wave.lightColor;
+        const glowColor = dark ? wave.darkGlow  : wave.lightGlow;
 
         /* データポイントを通りながら波打つ点列を生成 */
         const pts: [number, number][] = [];
@@ -194,24 +205,26 @@ function ChartCanvas({ distribution, mean }: ChartCanvasProps) {
           pts.push([x, yOf(dist[i]) + wobble]);
         }
 
-        /* ── グロー(ぼかし)パス ── */
-        ctx.save();
-        ctx.filter      = `blur(${wave.glowBlur}px)`;
-        ctx.strokeStyle = wave.glowColor;
-        ctx.lineWidth   = wave.lineWidth * 2.5;
-        ctx.globalAlpha = 0.45;
-        ctx.lineCap     = 'round';
-        ctx.lineJoin    = 'round';
-        buildSmoothPath(pts);
-        ctx.stroke();
-        ctx.restore();
+        /* ── グロー(ぼかし)パス（ダークのみ） ── */
+        if (dark) {
+          ctx.save();
+          ctx.filter      = `blur(${wave.glowBlur}px)`;
+          ctx.strokeStyle = glowColor;
+          ctx.lineWidth   = wave.lineWidth * 2.5;
+          ctx.globalAlpha = 0.45;
+          ctx.lineCap     = 'round';
+          ctx.lineJoin    = 'round';
+          buildSmoothPath(pts);
+          ctx.stroke();
+          ctx.restore();
+        }
 
         /* ── コアライン ── */
         ctx.save();
         ctx.filter      = 'none';
-        ctx.strokeStyle = wave.color;
+        ctx.strokeStyle = color;
         ctx.lineWidth   = wave.lineWidth;
-        ctx.globalAlpha = 0.95;
+        ctx.globalAlpha = dark ? 0.95 : 0.85;
         ctx.lineCap     = 'round';
         ctx.lineJoin    = 'round';
         buildSmoothPath(pts);
@@ -223,9 +236,9 @@ function ChartCanvas({ distribution, mean }: ChartCanvasProps) {
           ctx.save();
           ctx.filter = 'none';
           const grad = ctx.createLinearGradient(0, PAD_T, 0, PAD_T + chartH);
-          grad.addColorStop(0,   `${wave.color}50`);
-          grad.addColorStop(0.6, `${wave.color}18`);
-          grad.addColorStop(1,   `${wave.color}00`);
+          grad.addColorStop(0,   `${color}50`);
+          grad.addColorStop(0.6, `${color}18`);
+          grad.addColorStop(1,   `${color}00`);
           ctx.fillStyle   = grad;
           ctx.globalAlpha = wave.fillOpacity;
           buildSmoothPath(pts);
@@ -243,18 +256,24 @@ function ChartCanvas({ distribution, mean }: ChartCanvasProps) {
       /* ── 平均ライン ── */
       const meanBin = Math.min(Math.floor(avg / 10), bins - 1);
       const mx      = xOf(meanBin);
+      const avgColor = dark ? '#ffbe0b' : '#d97706';
       ctx.save();
-      ctx.filter      = 'blur(3px)';
-      ctx.strokeStyle = '#ffbe0b';
-      ctx.lineWidth   = 2;
-      ctx.globalAlpha = 0.6;
-      ctx.setLineDash([5, 3]);
-      ctx.beginPath();
-      ctx.moveTo(mx, PAD_T);
-      ctx.lineTo(mx, PAD_T + chartH);
-      ctx.stroke();
-      ctx.filter      = 'none';
+      if (dark) {
+        ctx.filter      = 'blur(3px)';
+        ctx.strokeStyle = avgColor;
+        ctx.lineWidth   = 2;
+        ctx.globalAlpha = 0.6;
+        ctx.setLineDash([5, 3]);
+        ctx.beginPath();
+        ctx.moveTo(mx, PAD_T);
+        ctx.lineTo(mx, PAD_T + chartH);
+        ctx.stroke();
+        ctx.filter = 'none';
+      }
       ctx.globalAlpha = 1;
+      ctx.strokeStyle = avgColor;
+      ctx.lineWidth   = dark ? 2 : 1.5;
+      ctx.setLineDash([5, 3]);
       ctx.beginPath();
       ctx.moveTo(mx, PAD_T);
       ctx.lineTo(mx, PAD_T + chartH);
@@ -265,7 +284,7 @@ function ChartCanvas({ distribution, mean }: ChartCanvasProps) {
       /* avg ラベル */
       ctx.save();
       ctx.font        = '10px monospace';
-      ctx.fillStyle   = '#ffbe0b';
+      ctx.fillStyle   = avgColor;
       ctx.globalAlpha = 1;
       ctx.textAlign   = 'center';
       ctx.fillText(`avg ${Math.round(avg)}%`, mx, PAD_T - 2);
@@ -274,7 +293,7 @@ function ChartCanvas({ distribution, mean }: ChartCanvasProps) {
       /* ── X軸ラベル ── */
       ctx.save();
       ctx.font      = '9px monospace';
-      ctx.fillStyle = '#67e8f9';
+      ctx.fillStyle = dark ? '#67e8f9' : '#475569';
       ctx.textAlign = 'center';
       for (let i = 0; i < bins; i++) {
         ctx.fillText(BIN_LABELS[i], xOf(i), H - 6);
@@ -284,7 +303,7 @@ function ChartCanvas({ distribution, mean }: ChartCanvasProps) {
       /* ── Y軸ラベル ── */
       ctx.save();
       ctx.font      = '9px monospace';
-      ctx.fillStyle = '#67e8f9';
+      ctx.fillStyle = dark ? '#67e8f9' : '#475569';
       ctx.textAlign = 'right';
       for (let g = 0; g <= gridLines; g++) {
         const val = Math.round((maxVal * (gridLines - g)) / gridLines);
@@ -312,19 +331,42 @@ function ChartCanvas({ distribution, mean }: ChartCanvasProps) {
 }
 
 /* ── メインコンポーネント ── */
-export default function HeatmapChart({ stats }: Props) {
+export default function HeatmapChart({ stats, theme = 'dark' }: Props) {
+  const isDark = theme === 'dark';
   return (
     <div className="w-full space-y-4">
       {/* サマリーカード */}
       <div className="grid grid-cols-3 gap-4">
-        <StatCard label="参加者数" value={`${stats.count}人`}    color="#00d4ff" glowClass="neon-pulse-violet" />
-        <StatCard label="平均"     value={`${stats.mean}%`}      color="#a855f7" glowClass="neon-pulse-violet" highlight />
-        <StatCard label="標準偏差" value={`±${stats.stdDev}`}    color="#f0abfc" glowClass="neon-pulse-pink" />
+        <StatCard
+          label="参加者数"
+          value={`${stats.count}人`}
+          darkColor="#00d4ff"
+          lightColor="#2563eb"
+          glowClass={isDark ? 'neon-pulse-violet' : ''}
+          theme={theme}
+        />
+        <StatCard
+          label="平均"
+          value={`${stats.mean}%`}
+          darkColor="#a855f7"
+          lightColor="#7c3aed"
+          glowClass={isDark ? 'neon-pulse-violet' : ''}
+          highlight
+          theme={theme}
+        />
+        <StatCard
+          label="標準偏差"
+          value={`±${stats.stdDev}`}
+          darkColor="#f0abfc"
+          lightColor="#a21caf"
+          glowClass={isDark ? 'neon-pulse-pink' : ''}
+          theme={theme}
+        />
       </div>
 
       {/* 分布グラフ（Canvas自前描画） */}
       <div className="h-48 w-full">
-        <ChartCanvas distribution={stats.distribution} mean={stats.mean} />
+        <ChartCanvas distribution={stats.distribution} mean={stats.mean} theme={theme} />
       </div>
 
     </div>
@@ -335,36 +377,61 @@ export default function HeatmapChart({ stats }: Props) {
 interface StatCardProps {
   label: string;
   value: string;
-  color: string;
+  darkColor: string;
+  lightColor: string;
   glowClass: string;
   highlight?: boolean;
+  theme: Theme;
 }
 
-function StatCard({ label, value, color, glowClass, highlight }: StatCardProps) {
+function StatCard({ label, value, darkColor, lightColor, glowClass, highlight, theme }: StatCardProps) {
+  const isDark = theme === 'dark';
+  const color = isDark ? darkColor : lightColor;
+
   return (
     <motion.div
       layout
       className={`rounded-xl p-3 text-center border relative overflow-hidden ${glowClass}`}
-      style={{
-        background: highlight
-          ? `linear-gradient(135deg, ${color}18, ${color}08)`
-          : 'rgba(13,27,46,0.8)',
-        borderColor: `${color}50`,
-      }}
+      style={
+        isDark
+          ? {
+              background: highlight
+                ? `linear-gradient(135deg, ${color}18, ${color}08)`
+                : 'rgba(13,27,46,0.8)',
+              borderColor: `${color}50`,
+            }
+          : {
+              background: highlight
+                ? `linear-gradient(135deg, ${color}12, #f8fafc)`
+                : '#f1f5f9',
+              borderColor: `${color}40`,
+              boxShadow: `0 1px 4px rgba(0,0,0,0.06)`,
+            }
+      }
     >
-      <div
-        className="absolute inset-0 rounded-xl pointer-events-none"
-        style={{ background: `radial-gradient(ellipse at 50% 100%, ${color}20, transparent 70%)` }}
-      />
+      {isDark && (
+        <div
+          className="absolute inset-0 rounded-xl pointer-events-none"
+          style={{ background: `radial-gradient(ellipse at 50% 100%, ${color}20, transparent 70%)` }}
+        />
+      )}
       <div className="relative z-10">
-        <div className="text-xs font-medium" style={{ color: `${color}99` }}>{label}</div>
+        <div
+          className="text-xs font-medium"
+          style={{ color: isDark ? `${color}99` : '#64748b' }}
+        >
+          {label}
+        </div>
         <motion.div
           key={value}
           initial={{ y: -6, opacity: 0, scale: 1.15 }}
           animate={{ y: 0, opacity: 1, scale: 1 }}
           transition={{ duration: 0.35, ease: 'backOut' }}
           className="text-xl font-bold mt-1 tabular-nums"
-          style={{ color, textShadow: `0 0 8px ${color}, 0 0 20px ${color}80` }}
+          style={{
+            color,
+            textShadow: isDark ? `0 0 8px ${color}, 0 0 20px ${color}80` : 'none',
+          }}
         >
           {value}
         </motion.div>

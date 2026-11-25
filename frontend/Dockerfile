@@ -11,6 +11,7 @@ COPY shared/ ./shared/
 WORKDIR /app/frontend
 # NEXT_PUBLIC_BACKEND_URL: next build 時に焼き込まれる。
 # render.yaml の envVars で渡すと Render がビルド時に --build-arg として注入する。
+RUN mkdir -p ./public
 ARG NEXT_PUBLIC_BACKEND_URL=http://localhost:4000
 ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
 RUN npm run build
@@ -19,7 +20,7 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app/frontend/.next ./.next
-COPY frontend/public ./public
+COPY --from=builder /app/frontend/public ./public
 COPY --from=builder /app/frontend/package.json .
 COPY --from=builder /app/frontend/node_modules ./node_modules
 COPY --from=builder /app/frontend/next.config.js .
